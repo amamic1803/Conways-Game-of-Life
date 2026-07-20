@@ -6,7 +6,7 @@ import shutil
 import PyInstaller.__main__
 
 
-def build(name, console, onefile, uac_admin, key, icon, upx, files, folders):
+def build(name, console, onefile, uac_admin, icon, files, folders):
 	work_path = "build"
 	while os.path.isdir(work_path):
 		work_path = f"build_{random.randint(1, 1_000_000_000)}"
@@ -35,22 +35,12 @@ def build(name, console, onefile, uac_admin, key, icon, upx, files, folders):
 	if uac_admin:
 		run_list.append("--uac-admin")
 
-	if key != "":
-		run_list.extend(('--key', key))
-
 	if icon != "":
 		icon_path = os.path.join(os.path.abspath("."), icon)
 		if not os.path.isfile(icon_path):
 			raise Exception("Invalid icon!")
 		else:
 			run_list.extend(('--icon', icon_path))
-
-	if upx != "":
-		if not os.path.isfile(upx):
-			raise Exception("Invalid UPX!")
-		else:
-			upx_path = os.path.join(os.path.abspath("."), os.path.dirname(upx))
-			run_list.extend(('--upx-dir', upx_path))
 
 	for file in files:
 		if os.path.isfile(os.path.join(os.path.abspath("."), file)):
@@ -77,13 +67,11 @@ def main():
 	console = False
 	onefile = True
 	uac_admin = False
-	key = "DarkLord76865"
-	icon = "data/cgol-icon.ico"
-	upx = "data\\upx.exe"
+	icon = "data/icon.ico"
 	files = [icon]
-	folders = ["run_data"]
+	folders = []
 
-	build(name, console, onefile, uac_admin, key, icon, upx, files, folders)
+	build(name, console, onefile, uac_admin, icon, files, folders)
 
 
 if __name__ == '__main__':
