@@ -78,10 +78,10 @@ def main():
 	console = False
 	onefile = True
 	uac_admin = False
-	icon = "icon.ico"
+	icon = "resources/icon.ico"
 
-	files = ["icon.ico"]
-	folders = []
+	files = []
+	folders = ["resources"]
 
 	if len(sys.argv) == 2:
 		if sys.argv[1] == "--version":
