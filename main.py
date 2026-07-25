@@ -76,6 +76,7 @@ class UIToolbar(tk.Frame, SimulationListener):
 		self.simulation.add_listener(self)
 		self.speed: int = 1  # simulation steps per second
 		self.running: bool = False
+		self.running_id: int = 0  # run id, incremented every run, used to stop old runs
 
 		self.title_lbl = tk.Label(self, anchor="center", text="Conway's Game of Life",
 								  font="Helvetica 26 italic", background="#ffffff",
@@ -147,17 +148,16 @@ class UIToolbar(tk.Frame, SimulationListener):
 	def on_start_stop_click(self):
 		if self.running:
 			self.running = False
+			self.running_id += 1
 			self.start_stop_btn.config(text="Start")
 		else:
 			self.running = True
 			self.start_stop_btn.config(text="Stop")
-			def auto_sim(curr_num):
-				if curr_num == sim_num:
-					if calc_gen():
-						root.after(int(round(sim_speed, 0)), lambda send_num=curr_num: auto_sim(send_num))
-					else:
-						stop_sim_click()
-			self.auto_sim(self.simulation.generation)
+			def auto_sim(curr_id):
+				if curr_id == self.running_id:
+					self.simulation.step()
+					self.after(int(round(1000 / self.speed, 0)), lambda send_id=curr_id: auto_sim(send_id))
+			auto_sim(self.running_id)
 
 	def on_reset_click(self):
 		# if running, stop
@@ -170,14 +170,14 @@ class UICanvas(tk.Canvas, SimulationListener):
 		super().__init__(master, **kwargs)
 
 		# variables
-		self.simulation: Simulation = simulation  # simulation
-		self.zoom: int = 15                       # cell dimensions in px
-		self.offset_x: int = 0                    # canvas x offset in px
-		self.offset_y: int = 0                    # canvas y offset in px
-		self.dragging: bool = False               # whether canvas is being dragged
-		self.drag_x: int = 0                      # current drag x coordinate
-		self.drag_y: int = 0                      # current drag y coordinate
-		self._img = None                          # reference to the image to prevent garbage collection
+		self.simulation: Simulation = simulation      # simulation
+		self.zoom: int = 25                           # cell dimensions in px
+		self.offset_x: int = 0                        # canvas x offset in px
+		self.offset_y: int = 0                        # canvas y offset in px
+		self.drag_x: int = 0                          # current drag x coordinate
+		self.drag_y: int = 0                          # current drag y coordinate
+		self._img = None                              # reference to the image to prevent garbage collection
+		self.selection: set[tuple[int, int]] = set()  # cells toggled in the current selection
 
 		# listen for state changes in the simulation
 		self.simulation.add_listener(self)
@@ -185,13 +185,18 @@ class UICanvas(tk.Canvas, SimulationListener):
 		# mouse wheel zoom
 		self.bind("<MouseWheel>", self.on_scroll)
 
-		# mouse left button click
-		self.bind("<ButtonRelease-1>", self.on_click)
+		# mouse left button select/drag (cell toggle)
+		self.bind("<Button-1>", self.on_select_start)
+		self.bind("<B1-Motion>", self.on_select_motion)
+		self.bind("<ButtonRelease-1>", self.on_select_stop)
 
 		# mouse right button drag
 		self.bind('<Button-3>', self.on_drag_start)
 		self.bind('<B3-Motion>', self.on_drag_motion)
 		self.bind('<ButtonRelease-3>', self.on_drag_stop)
+
+		# listen for size changes to redraw
+		self.bind("<Configure>", self.on_configure)
 
 	def on_simulation_update(self) -> None:
 		self.redraw()
@@ -200,7 +205,6 @@ class UICanvas(tk.Canvas, SimulationListener):
 		self.redraw()
 
 	def on_drag_start(self, event):
-		self.dragging = True
 		self.drag_x = event.x
 		self.drag_y = event.y
 		self.configure(cursor="fleur")
@@ -213,21 +217,32 @@ class UICanvas(tk.Canvas, SimulationListener):
 		self.redraw()
 
 	def on_drag_stop(self, _):
-		self.dragging = False
 		self.configure(cursor="arrow")
 
-	def on_click(self, event):
+	def on_select_start(self, event):
+		self.selection.clear()
+		self.on_select_motion(event)
+
+	def on_select_motion(self, event):
 		x = self.offset_x + event.x
 		y = self.offset_y + event.y
 		cell = (x // self.zoom, y // self.zoom)
-		self.simulation.toggle(cell)
+		if cell not in self.selection:
+			self.selection.add(cell)
+			self.simulation.toggle(cell)
+
+	def on_select_stop(self, event):
+		self.on_select_motion(event)
 
 	def on_scroll(self, event):
+		world_x = (self.offset_x + event.x) / self.zoom
+		world_y = (self.offset_y + event.y) / self.zoom
 		if event.delta > 0:
-			self.zoom += 1
+			self.zoom = min(75, self.zoom + 1)
 		else:
 			self.zoom = max(1, self.zoom - 1)
-		# todo x,y
+		self.offset_x = int(round(world_x * self.zoom - event.x))
+		self.offset_y = int(round(world_y * self.zoom - event.y))
 		self.redraw()
 
 	def redraw(self):
